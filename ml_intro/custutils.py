@@ -1,3 +1,6 @@
+from functools import wraps
+from time import time
+
 import pandas as pd
 from sklearn.metrics import r2_score
 import numpy as np
@@ -62,7 +65,8 @@ def split_series(df, hist_len=0.5):
 
 
 def cross_validate_est(est_cls, x, y, cv, par_values, par_key,
-                       scoring='accuracy', est_params=None, agg_f=np.mean):
+                       scoring='accuracy', est_params=None, agg_f=np.mean,
+                       timed=False):
     """Variates parameter par_key of estimator created by est_cls
     (est_params is kwargs for constructor) by taking them from
     sequence par_vlaues and cross-validates results. Cross-valdation
@@ -72,12 +76,17 @@ def cross_validate_est(est_cls, x, y, cv, par_values, par_key,
     performs and raw data pd frame returned """
     if not est_params:
         est_params = {}
+    start = time()
     res = pd.DataFrame(
         [(key, cross_val_score(est_cls(**{**est_params, par_key: key}),
-                               x, y, cv=cv, scoring=scoring))
+                               x, y, cv=cv, scoring=scoring), time() - start)
          for key in par_values],
-        columns=[par_key, scoring]
+        columns=[par_key, scoring, 'exec time (s)']
     )
+    # TO-DO: bad code, refactor
+    # remove exec time
+    if not timed:
+        res.drop('exec time (s)', axis=1, inplace=True)
     res.set_index([par_key], inplace=True)
     if agg_f:
         agg_name = agg_f.__name__
@@ -90,3 +99,18 @@ def cross_validate_est(est_cls, x, y, cv, par_values, par_key,
 def to_path(filename):
     """returns full path to file in ml folder on my pc"""
     return 'D:\\WORK\ml\\data\\' + filename
+
+
+def sigmoid(z):
+    return 1. / (1. + np.exp(-z))
+
+
+def timeit(func):
+    @wraps(func)
+    def timed(*args, **kwargs):
+        start = time()
+        res = func(*args, **kwargs)
+        end = time()
+        print(f'Function {func.__name__} exec time: {end - start}')
+        return res
+    return timed
